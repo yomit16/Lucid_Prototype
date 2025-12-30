@@ -146,25 +146,26 @@ export default function LucidAssistant() {
   return (
     <div>
       {/* Floating button */}
-      <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 9999 }}>
+      <div style={{ position: 'fixed', right: 28, bottom: 28, zIndex: 9999 }}>
         <button
           aria-label="Open Lucid Assistant"
           onClick={() => setOpen(o => !o)}
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: 28,
+            width: 72,
+            height: 72,
+            borderRadius: 36,
             background: '#2563eb',
             color: 'white',
             border: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(2,6,23,0.2)',
-            cursor: 'pointer'
+            boxShadow: '0 12px 36px rgba(37,102,235,0.18)',
+            cursor: 'pointer',
+            transform: 'translateZ(0)'
           }}
         >
-          <MessageSquare size={22} />
+          <MessageSquare size={30} />
         </button>
       </div>
 

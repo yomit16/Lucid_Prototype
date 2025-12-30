@@ -74,9 +74,12 @@ interface Employee {
   id: string
   email: string
   name: string | null
+  user_id?: string
+  title?: string | null
   joined_at: string
   company_id?: string
 }
+
 
 export default function EmployeeWelcome() {
   const { user, loading: authLoading, logout } = useAuth()
@@ -99,6 +102,7 @@ export default function EmployeeWelcome() {
   }>({ totalEmployees: 0, completedEmployees: 0, userRank: null, topPercentile: null })
   const [nudgeMessage, setNudgeMessage] = useState<string>("")
   const [progressPercentage, setProgressPercentage] = useState<number>(0)
+  const [showLoginToast, setShowLoginToast] = useState<boolean>(false)
   const router = useRouter()
   
   // Add debugging for nudge component
@@ -110,6 +114,36 @@ export default function EmployeeWelcome() {
       assignedModules: assignedModules.length
     });
   }, [nudgeMessage, progressPercentage, companyStats, assignedModules]);
+
+  // Show a one-time login toast when the user lands on the dashboard after login.
+  useEffect(() => {
+    // Only run in browser
+    if (typeof window === 'undefined') return;
+
+    const alreadyShown = sessionStorage.getItem('loginToastShown') === '1'
+
+    // Detect simple signals that user just logged in:
+    // 1) URL param ?justLoggedIn=1 (login flow may append this)
+    // 2) sessionStorage flag 'justLoggedIn' set by auth redirect (if available)
+    // 3) document.referrer includes '/login'
+    const params = new URLSearchParams(window.location.search)
+    const paramFlag = params.get('justLoggedIn') === '1'
+    const sessionFlag = sessionStorage.getItem('justLoggedIn') === '1'
+    const referrerFlag = typeof document !== 'undefined' && document.referrer && document.referrer.includes('/login')
+
+    const shouldShow = !alreadyShown && (paramFlag || sessionFlag || referrerFlag)
+
+    if (shouldShow) {
+      setShowLoginToast(true)
+      // mark shown so we don't show again in this browser session
+      try { sessionStorage.setItem('loginToastShown', '1') } catch (e) {}
+      try { sessionStorage.removeItem('justLoggedIn') } catch (e) {}
+
+      // auto-dismiss after 7 seconds
+      const t = setTimeout(() => setShowLoginToast(false), 7000)
+      return () => clearTimeout(t)
+    }
+  }, [])
 
   // LOG: Initial state
   console.log("[EmployeeWelcome] Initial user:", user)
@@ -572,8 +606,26 @@ export default function EmployeeWelcome() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100" onClick={() => setShowProfileDropdown(false)}>
+    <div className="min-h-screen bg-slate-50" onClick={() => setShowProfileDropdown(false)}>
       <EmployeeNavigation showBack={false} showForward={false} />
+
+      {/* Login success toast (top-right) */}
+      {showLoginToast && (
+        <div className="fixed top-6 right-6 z-50">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-slate-100 p-4 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white shadow-md">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" stroke="white" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <div className="text-lg font-extrabold text-slate-900">Successfully logged in!</div>
+              <div className="text-slate-600">Your account is ready. Explore your personalized dashboard.</div>
+            </div>
+            <button onClick={() => setShowLoginToast(false)} className="text-slate-400 hover:text-slate-600 ml-2">✕</button>
+          </div>
+        </div>
+      )}
       
       {/* Main content area that adapts to sidebar */}
       <div 
@@ -587,12 +639,16 @@ export default function EmployeeWelcome() {
           <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center">
-                <Users className="w-8 h-8 text-green-600 mr-3" />
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Learner's Dashboard</h1>
-                  {/* <p className="text-sm text-gray-600">Welcome to your dashboard</p> */}
+                <Users className="w-8 h-8 text-green-600 mr-4" />
+                <div className="leading-tight">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {employee?.name ? `Welcome, ${employee.name}` : "Learner's Dashboard"}
+                  </h1>
+                  <p className="text-sm text-gray-600">
+                    {employee?.email || user?.email || "Your personalized learning hub"}
+                  </p>
+                </div>
               </div>
-            </div>
             <div className="relative">
               {/* Profile Dropdown - Commented Out */}
               {/*
@@ -654,48 +710,37 @@ export default function EmployeeWelcome() {
         <div className="grid gap-8">{/* Welcome Card */}
           {/* Progress Nudge Card */}
           {nudgeMessage && (
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    {progressPercentage === 100 ? (
-                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                        <Trophy className="w-6 h-6 text-white" />
-                      </div>
-                    ) : progressPercentage >= 50 ? (
-                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
-                        <Zap className="w-6 h-6 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">Your Progress</h3>
-                      <div className="flex items-center gap-2">
-                        <div className="text-2xl font-bold text-blue-600">{progressPercentage}%</div>
-                        {companyStats.userRank && (
-                          <Badge variant="outline" className="bg-white">
-                            Rank #{companyStats.userRank} of {companyStats.totalEmployees}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-gray-700 mb-3">{nudgeMessage}</p>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                      <div 
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${progressPercentage}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span>{companyStats.completedEmployees} colleagues completed</span>
-                      {companyStats.topPercentile !== null && (
-                        <span>Top {companyStats.topPercentile}% in company</span>
+            <Card className="rounded-3xl border border-slate-100 shadow-md bg-white">
+              <CardContent className="py-8 px-8">
+                <div className="flex items-center justify-between gap-6">
+                  {/* Left: icon + content */}
+                  <div className="flex items-center gap-6 flex-1 min-w-0">
+                    <div className="w-14 h-14 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                      {progressPercentage === 100 ? (
+                        <Trophy className="w-7 h-7 text-blue-600" />
+                      ) : progressPercentage >= 50 ? (
+                        <TrendingUp className="w-7 h-7 text-blue-600" />
+                      ) : (
+                        <Zap className="w-7 h-7 text-blue-600" />
                       )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="text-2xl font-extrabold text-slate-900 leading-tight">Your Progress</h3>
+                      <p className="text-slate-600 mt-2 truncate">{nudgeMessage}</p>
+                      <div className="mt-4 text-[11px] uppercase tracking-widest text-slate-400">{companyStats.completedEmployees} colleague{companyStats.completedEmployees === 1 ? '' : 's'} completed</div>
+                    </div>
+                  </div>
+
+                  {/* Right: circular percentage + rank */}
+                  <div className="flex flex-col items-center justify-center w-36">
+                    <div className={`relative w-24 h-24 rounded-full flex items-center justify-center bg-white border-8 ${progressPercentage >= 100 ? 'border-green-100' : 'border-slate-100'}`}>
+                      <div className={`absolute inset-0 rounded-full flex items-center justify-center`}>
+                        <div className={`text-3xl font-extrabold ${progressPercentage >= 100 ? 'text-green-600' : 'text-slate-900'}`}>{progressPercentage}%</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-slate-400 tracking-wider">
+                      {companyStats.userRank ? `Rank #${companyStats.userRank} of ${companyStats.totalEmployees || '—'}` : '—'}
                     </div>
                   </div>
                 </div>
@@ -704,29 +749,46 @@ export default function EmployeeWelcome() {
           )}
 
           {/* Assigned Modules Card */}
-          <Card>
+          <Card className="rounded-2xl border border-slate-100 shadow-sm">
             <CardHeader>
               <CardTitle>Learning Preference</CardTitle>
               <CardDescription>Tell us how you learn best so we can personalize your plan</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-6">
               {learningStyle ? (
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      <div className="w-20 h-20 rounded-full bg-green-600 text-white flex items-center justify-center text-2xl font-semibold">{learningStyle}</div>
-                    </div>
-                    <div className="min-w-0">
-                      <LearningStyleBlurb styleCode={learningStyle} />
-                      <div className="mt-4 md:mt-2">
-                        <Button variant="outline" onClick={() => router.push('/employee/score-history')}>
-                          Get your full report
-                        </Button>
-                      </div>
+                <div className="flex items-center gap-8">
+                  {/* Left avatar */}
+                  <div className="flex-shrink-0">
+                    <div className="w-28 h-28 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-3xl font-semibold shadow-lg">
+                      {learningStyle}
                     </div>
                   </div>
-                  <div>
-                    {/* kept for layout parity */}
+
+                  {/* Middle content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-lg font-semibold text-slate-900">{(() => {
+                      // Render friendly label from the blurb helper when possible
+                      const labelMap: Record<string, string> = {
+                        CS: 'Concrete Sequential',
+                        AS: 'Abstract Sequential',
+                        AR: 'Abstract Random',
+                        CR: 'Concrete Random',
+                      };
+                      return labelMap[learningStyle as keyof typeof labelMap] || learningStyle;
+                    })()}</div>
+                    <div className="mt-2 text-slate-600">
+                      <LearningStyleBlurb styleCode={learningStyle} />
+                    </div>
+
+                    <div className="mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push('/employee/score-history')}
+                        className="rounded-full px-6 py-3 shadow-sm border-slate-200"
+                      >
+                        Get your full report
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -768,83 +830,87 @@ export default function EmployeeWelcome() {
                     {assignedModules.length === 0 ? (
                       <div className="text-gray-500">You have no modules assigned yet.</div>
                     ) : (
-                      assignedModules.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-white">
-                          <div className="font-medium text-gray-800">{m.title || `Module ${m.id}`}</div>
+                      assignedModules.map((m) => {
+                        // compute percent using same logic as before (kept intact)
+                        let percent = 0
+                        const matches = (moduleProgress || []).filter((mp: any) => {
+                          try {
+                            if (mp?.processed_module_id && String(mp.processed_module_id) === String(m.id)) return true
+                            if (mp?.module_id && String(mp.module_id) === String(m.id)) return true
+                            if (
+                              mp?.processed_modules?.title &&
+                              m?.title &&
+                              String(mp.processed_modules.title).toLowerCase().includes(String(m.title).toLowerCase())
+                            ) return true
+                          } catch (e) {}
+                          return false
+                        })
+                        if (matches.length > 0) {
+                          for (const mp of matches) {
+                            if (mp.completed_at) {
+                              percent = 100
+                              break
+                            }
+                            let indicators = 0
+                            if (mp.viewed_at) indicators++
+                            if (mp.audio_listen_duration && mp.audio_listen_duration > 0) indicators++
+                            if (mp.quiz_score !== null && mp.quiz_score !== undefined) indicators++
+                            const p = indicators > 0 ? Math.round((indicators / 3) * 90) : 0
+                            if (p > percent) percent = p
+                          }
+                        }
 
-                          <div className="flex items-center gap-3">
-                            {(() => {
-                              let percent = 0
-                              const matches = (moduleProgress || []).filter((mp: any) => {
-                                try {
-                                  if (mp?.processed_module_id && String(mp.processed_module_id) === String(m.id)) return true
-                                  if (mp?.module_id && String(mp.module_id) === String(m.id)) return true
-                                  if (
-                                    mp?.processed_modules?.title &&
-                                    m?.title &&
-                                    String(mp.processed_modules.title).toLowerCase().includes(String(m.title).toLowerCase())
-                                  ) return true
-                                } catch (e) {}
-                                return false
-                              })
-                              if (matches.length > 0) {
-                                for (const mp of matches) {
-                                  if (mp.completed_at) {
-                                    percent = 100
-                                    break
-                                  }
-                                  let indicators = 0
-                                  if (mp.viewed_at) indicators++
-                                  if (mp.audio_listen_duration && mp.audio_listen_duration > 0) indicators++
-                                  if (mp.quiz_score !== null && mp.quiz_score !== undefined) indicators++
-                                  const p = indicators > 0 ? Math.round((indicators / 3) * 90) : 0
-                                  if (p > percent) percent = p
-                                }
-                              }
+                        return (
+                          <div key={m.id} className="p-4 rounded-lg border bg-white flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="text-lg font-medium text-gray-800 truncate">{m.title || `Module ${m.id}`}</div>
+                            </div>
 
-                              return (
-                                <div className="w-48 sm:w-64 lg:w-72">
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className={`h-2 rounded-full transition-all duration-500 ${percent >= 100 ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-green-400'}`}
-                                      style={{ width: `${percent}%` }}
-                                      aria-valuenow={percent}
-                                      aria-valuemin={0}
-                                      aria-valuemax={100}
-                                    />
-                                  </div>
+                            <div className="flex items-center gap-4">
+                              {/* circular percent */}
+                              <div className="flex flex-col items-center">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-white border-2 border-slate-100`}>
+                                  <div className="text-sm font-semibold text-slate-800">{percent}%</div>
                                 </div>
-                              )
-                            })()}
+                              </div>
 
-                            <Button onClick={() => router.push(`/employee/assessment?moduleId=${m.id}`)}>Baseline Assessment</Button>
-                            <Button onClick={async () => {
-                              try {
-                                if (!employee?.user_id) {
-                                  alert('Could not determine employee. Please reload or login again.');
-                                  return;
-                                }
-                                const res = await fetch(`/api/training-plan?module_id=${encodeURIComponent(m.id)}`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ user_id: employee.user_id }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) {
-                                  const msg = data?.error || data?.message || 'Failed to generate learning plan';
-                                  alert(`Error: ${msg}`);
-                                  return;
-                                }
-                                // Redirect to training plan page scoped to this module
-                                router.push(`/employee/training-plan?module_id=${encodeURIComponent(m.id)}`);
-                              } catch (e) {
-                                console.error('Error requesting module training plan', e);
-                                alert('Network error while requesting training plan.');
-                              }
-                            }}>Learning Plan</Button>
+                              {/* baseline status (visual only) and action buttons */}
+                              <div className="flex items-center gap-3">
+                                <div className={`px-3 py-2 rounded-md text-sm font-semibold ${percent >= 100 ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-slate-700'}`}>
+                                  {percent >= 100 ? 'Baseline Complete' : 'Baseline Pending'}
+                                </div>
+
+                                <Button onClick={() => router.push(`/employee/assessment?moduleId=${m.id}`)} className="bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">Baseline Assessment</Button>
+
+                                <Button onClick={async () => {
+                                  try {
+                                    if (!employee?.user_id) {
+                                      alert('Could not determine employee. Please reload or login again.');
+                                      return;
+                                    }
+                                    // keep same behaviour: POST then navigate
+                                    const res = await fetch(`/api/training-plan?module_id=${encodeURIComponent(m.id)}`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ user_id: employee.user_id }),
+                                    });
+                                    const data = await res.json().catch(() => ({}));
+                                    if (!res.ok) {
+                                      const msg = data?.error || data?.message || 'Failed to generate learning plan';
+                                      alert(`Error: ${msg}`);
+                                      return;
+                                    }
+                                    router.push(`/employee/training-plan?module_id=${encodeURIComponent(m.id)}`);
+                                  } catch (e) {
+                                    console.error('Error requesting module training plan', e);
+                                    alert('Network error while requesting training plan.');
+                                  }
+                                }} className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700">Learning Plan</Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </CardContent>
@@ -1136,23 +1202,31 @@ export default function EmployeeWelcome() {
                     // LOG: Each module progress row
                     console.log(`[EmployeeWelcome] Rendering moduleProgress[${idx}]:`, mod)
                     return (
-                      <div key={mod.processed_module_id} className={`flex items-center justify-between p-3 rounded-lg ${mod.completed_at ? "bg-green-50" : "bg-gray-50"}`}>
-                        <span className={`font-medium ${mod.completed_at ? "text-green-800" : "text-gray-600"}`}>{mod.processed_modules?.title || `Module ${mod.processed_module_id}`}</span>
-                        <div className="flex gap-2 items-center">
-                          {mod.viewed_at && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">Viewed</span>
-                          )}
-                          {mod.audio_listen_duration > 0 && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">Audio: {mod.audio_listen_duration}s</span>
-                          )}
-                          {mod.quiz_score !== null && (
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">Quiz: {mod.quiz_score}</span>
-                          )}
-                          {mod.completed_at ? (
-                            <span className="px-2 py-1 bg-green-200 text-green-800 rounded-full text-xs font-medium">✓ Complete</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">In Progress</span>
-                          )}
+                      <div key={mod.processed_module_id} className={`p-3 rounded-lg ${mod.completed_at ? "bg-green-50" : "bg-gray-50"}`}> 
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className={`font-medium ${mod.completed_at ? "text-green-800" : "text-gray-800"} truncate`}>{mod.processed_modules?.title || `Module ${mod.processed_module_id}`}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {mod.completed_at ? `Completed ${new Date(mod.completed_at).toLocaleDateString()}` : `Last activity: ${mod.updated_at ? new Date(mod.updated_at).toLocaleDateString() : '—'}`}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
+                            {mod.viewed_at && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">Viewed</span>
+                            )}
+                            {mod.audio_listen_duration > 0 && (
+                              <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">Audio: {mod.audio_listen_duration}s</span>
+                            )}
+                            {mod.quiz_score !== null && (
+                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">Quiz: {mod.quiz_score}</span>
+                            )}
+                            {mod.completed_at ? (
+                              <span className="px-2 py-1 bg-green-200 text-green-800 rounded-full text-xs font-medium">✓ Complete</span>
+                            ) : (
+                              <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">In Progress</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
