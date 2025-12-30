@@ -14,6 +14,7 @@ export default function ModuleContentPage({ params }: { params: { module_id: str
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState<any>(null);
   const [learningStyle, setLearningStyle] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<{ attemptedModuleId?: string | null; attemptedStyle?: string | null } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -126,6 +127,11 @@ export default function ModuleContentPage({ params }: { params: { module_id: str
       } else {
         console.error('[module] No module data found for id:', moduleId);
         setModule(null);
+        // keep last known debug info in state for better user-visible diagnostics
+        setDebugInfo({
+          attemptedModuleId: moduleId,
+          attemptedStyle: style || null,
+        });
       }
       setLoading(false);
     };
@@ -137,7 +143,26 @@ export default function ModuleContentPage({ params }: { params: { module_id: str
   }
 
   if (!module) {
-    return <div className="min-h-screen flex items-center justify-center text-red-600">Module not found.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-600">
+        <div className="max-w-xl text-center">
+          <div className="text-2xl font-semibold mb-2">Module not found.</div>
+          <div className="text-sm text-gray-700 mb-4">We couldn't locate content for this module.</div>
+          <div className="text-left bg-gray-50 p-3 rounded border text-xs text-gray-600">
+            <div><strong>Requested module id:</strong> {moduleId}</div>
+            <div><strong>Resolved learning style:</strong> {learningStyle ?? '—'}</div>
+            <div><strong>Employee id:</strong> {employee?.user_id ?? '—'}</div>
+            {debugInfo && (
+              <div className="mt-2 text-xs text-gray-500">
+                <div><strong>Debug:</strong></div>
+                <div>attemptedModuleId: {String(debugInfo.attemptedModuleId)}</div>
+                <div>attemptedStyle: {String(debugInfo.attemptedStyle)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

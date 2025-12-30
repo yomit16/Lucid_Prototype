@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface StepButtonProps {
   step: number;
@@ -103,6 +103,9 @@ export default function EmployeeWelcome() {
   const [nudgeMessage, setNudgeMessage] = useState<string>("")
   const [progressPercentage, setProgressPercentage] = useState<number>(0)
   const [showLoginToast, setShowLoginToast] = useState<boolean>(false)
+  const toastShownRef = useRef(false)
+  const prevUserRef = useRef<any>(null)
+  const toastTimerRef = useRef<number | null>(null)
   const router = useRouter()
   
   // Add debugging for nudge component
@@ -161,6 +164,52 @@ export default function EmployeeWelcome() {
       }
     }
   }, [user, authLoading, router])
+
+  // When the authenticated user first appears (e.g. immediately after login),
+  // show a one-time toast on the top-right for 7 seconds. This detects the
+  // auth transition and shows the toast once per browser visit.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (authLoading) return
+
+    // Detect transition from no-user -> user (login event)
+    const previouslyHadUser = !!prevUserRef.current
+    const nowHaveUser = !!user
+
+    // update prev ref for next run
+    prevUserRef.current = user
+
+    // Only trigger when we just transitioned from logged-out -> logged-in
+    if (!previouslyHadUser && nowHaveUser) {
+      // avoid double-show within same visit
+      if (toastShownRef.current) return
+      toastShownRef.current = true
+      setShowLoginToast(true)
+      // central timer handled by showLoginToast effect (below)
+      return undefined
+    }
+  }, [user, authLoading])
+
+  // Ensure any time the toast is shown it auto-dismisses after 7 seconds.
+  useEffect(() => {
+    if (showLoginToast) {
+      // clear existing timer
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current)
+      }
+      toastTimerRef.current = window.setTimeout(() => {
+        setShowLoginToast(false)
+        toastTimerRef.current = null
+      }, 7000)
+      return () => {
+        if (toastTimerRef.current) {
+          clearTimeout(toastTimerRef.current)
+          toastTimerRef.current = null
+        }
+      }
+    }
+    return undefined
+  }, [showLoginToast])
 
   const checkEmployeeAccess = async () => {
     if (!user?.email) return
@@ -792,33 +841,41 @@ export default function EmployeeWelcome() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between relative">
                   <div>
                     <div className="font-medium mb-1">Not set yet</div>
                     <div className="text-sm text-gray-600">Take a short 5-minute survey to personalize your learning experience.</div>
                   </div>
-                  <Button onClick={() => router.push('/employee/learning-style')}>Set Learning Preference</Button>
+
+                  <div className="flex gap-2 relative items-end">
+                    {/* Callout bubble positioned above the Take Survey button (merged into the top card) */}
+                    <div className="absolute -top-20 right-0 z-10">
+                      <div className="bg-[#EEF6FF] border border-blue-100 text-[#0F4BD8] rounded-2xl px-4 py-3 shadow-md w-[320px]">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">
+                            <svg className="w-5 h-5 text-[#0F4BD8]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9 21h6v-1a3 3 0 00-6 0v1z" fill="#0F4BD8" />
+                              <path d="M12 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z" fill="#0F4BD8" />
+                            </svg>
+                          </div>
+                          <div className="text-sm">
+                            <div className="font-semibold text-[#0F4BD8]">Proceed with step 1:</div>
+                            <div className="font-extrabold text-[#0F4BD8]">Complete your learning style survey here!</div>
+                          </div>
+                        </div>
+                        {/* Pointer */}
+                        <div className="absolute right-10 -bottom-2 w-4 h-4 bg-[#EEF6FF] border-l border-t border-blue-100 rotate-45"></div>
+                      </div>
+                    </div>
+
+                    <Button onClick={() => router.push('/employee/learning-style')} className="bg-black text-white rounded-lg px-4 py-2">Take Survey</Button>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* If learning preference not completed, block rest of dashboard */}
-          {!learningStyle ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Complete Your Learning Preference</CardTitle>
-                <CardDescription>We need this before showing your assigned modules and learning plan</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-gray-700 mb-4">Please complete the Learning Preference survey to unlock your Baseline Assessment, Assigned Modules, and Learning Plan.</div>
-                <div className="flex gap-2">
-                  <Button onClick={() => router.push('/employee/learning-style')}>Take Survey</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          
               {/* Assigned Modules Card */}
               <Card>
                 <CardHeader>
@@ -826,93 +883,39 @@ export default function EmployeeWelcome() {
                   <CardDescription>Modules assigned to you from your learning plan</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {assignedModules.length === 0 ? (
-                      <div className="text-gray-500">You have no modules assigned yet.</div>
-                    ) : (
-                      assignedModules.map((m) => {
-                        // compute percent using same logic as before (kept intact)
-                        let percent = 0
-                        const matches = (moduleProgress || []).filter((mp: any) => {
-                          try {
-                            if (mp?.processed_module_id && String(mp.processed_module_id) === String(m.id)) return true
-                            if (mp?.module_id && String(mp.module_id) === String(m.id)) return true
-                            if (
-                              mp?.processed_modules?.title &&
-                              m?.title &&
-                              String(mp.processed_modules.title).toLowerCase().includes(String(m.title).toLowerCase())
-                            ) return true
-                          } catch (e) {}
-                          return false
-                        })
-                        if (matches.length > 0) {
-                          for (const mp of matches) {
-                            if (mp.completed_at) {
-                              percent = 100
-                              break
-                            }
-                            let indicators = 0
-                            if (mp.viewed_at) indicators++
-                            if (mp.audio_listen_duration && mp.audio_listen_duration > 0) indicators++
-                            if (mp.quiz_score !== null && mp.quiz_score !== undefined) indicators++
-                            const p = indicators > 0 ? Math.round((indicators / 3) * 90) : 0
-                            if (p > percent) percent = p
-                          }
-                        }
-
-                        return (
-                          <div key={m.id} className="p-4 rounded-lg border bg-white flex items-center justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="text-lg font-medium text-gray-800 truncate">{m.title || `Module ${m.id}`}</div>
+                  {!learningStyle ? (
+                    <div className="p-6 text-center text-gray-600">
+                      <div className="font-semibold text-lg mb-2">Assigned modules are locked</div>
+                      <div className="mb-4">Complete the short learning preference survey to unlock your assigned modules and training plan.</div>
+                      <div className="flex justify-center">
+                        <Button onClick={() => router.push('/employee/learning-style')} className="bg-blue-600 text-white rounded-lg px-4 py-2">Take Survey</Button>
+                      </div>
+                    </div>
+                  ) : assignedModules.length === 0 ? (
+                    <div className="text-gray-500">You have no modules assigned yet.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {assignedModules.map((m) => (
+                        <div key={String(m.id)} className="p-4 rounded-lg border bg-white flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-lg font-medium text-gray-800 truncate">{m.title || `Module ${m.id}`}</div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-white border-2 border-slate-100`}>
+                                <div className="text-sm font-semibold text-slate-800">0%</div>
+                              </div>
                             </div>
-
-                            <div className="flex items-center gap-4">
-                              {/* circular percent */}
-                              <div className="flex flex-col items-center">
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-white border-2 border-slate-100`}>
-                                  <div className="text-sm font-semibold text-slate-800">{percent}%</div>
-                                </div>
-                              </div>
-
-                              {/* baseline status (visual only) and action buttons */}
-                              <div className="flex items-center gap-3">
-                                <div className={`px-3 py-2 rounded-md text-sm font-semibold ${percent >= 100 ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-slate-700'}`}>
-                                  {percent >= 100 ? 'Baseline Complete' : 'Baseline Pending'}
-                                </div>
-
-                                <Button onClick={() => router.push(`/employee/assessment?moduleId=${m.id}`)} className="bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">Baseline Assessment</Button>
-
-                                <Button onClick={async () => {
-                                  try {
-                                    if (!employee?.user_id) {
-                                      alert('Could not determine employee. Please reload or login again.');
-                                      return;
-                                    }
-                                    // keep same behaviour: POST then navigate
-                                    const res = await fetch(`/api/training-plan?module_id=${encodeURIComponent(m.id)}`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ user_id: employee.user_id }),
-                                    });
-                                    const data = await res.json().catch(() => ({}));
-                                    if (!res.ok) {
-                                      const msg = data?.error || data?.message || 'Failed to generate learning plan';
-                                      alert(`Error: ${msg}`);
-                                      return;
-                                    }
-                                    router.push(`/employee/training-plan?module_id=${encodeURIComponent(m.id)}`);
-                                  } catch (e) {
-                                    console.error('Error requesting module training plan', e);
-                                    alert('Network error while requesting training plan.');
-                                  }
-                                }} className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700">Learning Plan</Button>
-                              </div>
+                            <div className="flex items-center gap-3">
+                              <div className="px-3 py-2 rounded-md text-sm font-semibold bg-gray-100 text-slate-700">Baseline Pending</div>
+                              <Button onClick={() => router.push(`/employee/assessment?moduleId=${m.id}`)} className="bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">Baseline Assessment</Button>
+                              <Button onClick={() => router.push(`/employee/training-plan?module_id=${encodeURIComponent(m.id)}`)} className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700">Learning Plan</Button>
                             </div>
                           </div>
-                        )
-                      })
-                    )}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -963,8 +966,7 @@ export default function EmployeeWelcome() {
                 </CardContent>
               </Card>
               )}
-            </>
-          )}
+            
           {/*
           <Card className="bg-gradient-to-r from-green-500 to-blue-600 text-white">
             <CardHeader>

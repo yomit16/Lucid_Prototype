@@ -543,6 +543,12 @@ export default function TrainingPlanPage() {
     return { ...normalizedMod, _tabValue: tabValue, _isCompleted: isCompleted };
   });
 
+  // UI helper: total recommended time across modules (display only)
+  const totalTime = normalizedModules.reduce(
+    (sum: number, m: any) => sum + (Number(m.recommended_time) || 0),
+    0
+  );
+
   // console.log("Color Green");
 
   return (
@@ -565,12 +571,16 @@ export default function TrainingPlanPage() {
               <div className="flex items-center">
                 <Users className="w-8 h-8 text-green-600 mr-3" />
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    Learner's Learning Plan
-                  </h1>
+                  <h1 className="text-2xl font-extrabold text-gray-900">Learner's Learning Plan</h1>
+                  <p className="text-sm text-gray-500">An AI-powered learning plan tailored to your needs.</p>
                 </div>
               </div>
-              <div className="relative" />
+              <div className="flex items-center gap-4">
+                <button onClick={() => { try { router.back(); } catch {} }} className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm shadow-sm flex items-center gap-2">
+                  <span className="text-sm">←</span>
+                  <span className="text-sm">Back</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -586,32 +596,32 @@ export default function TrainingPlanPage() {
         <div className="max-w-7xl mx-auto">
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Your Roadmap to Mastery</CardTitle>
-              <CardDescription>
-                Learning Plan which works for you
-              </CardDescription>
-              {/* Progress Summary */}
-              <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    Progress Overview
-                  </span>
-                  <span className="text-sm font-bold text-green-600">
-                    {completedModules.length} / {normalizedModules.length}{" "}
-                    Modules Completed
-                  </span>
+              <div className="flex items-start justify-between w-full">
+                <div>
+                  <CardTitle>Your Roadmap to Mastery</CardTitle>
+                  <CardDescription>
+                    An AI-powered learning plan tailored to your needs.
+                  </CardDescription>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="text-right ml-6 hidden md:block">
+                  <div className="text-xs text-slate-500 uppercase">TOTAL TIME</div>
+                  <div className="text-2xl font-extrabold text-blue-600">{totalTime} hours</div>
+                </div>
+              </div>
+
+              {/* Progress Overview (rounded white card) */}
+              <div className="mt-6 p-6 bg-white rounded-2xl border shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-lg font-semibold text-gray-700">Progress Overview</div>
+                  <div className="text-sm font-bold text-green-600">{completedModules.length} / {normalizedModules.length} Modules Completed</div>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-3">
                   <div
-                    className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500"
+                    className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500"
                     style={{
-                      width: `${
-                        (completedModules.length /
-                          Math.max(normalizedModules.length, 1)) *
-                        100
-                      }%`,
+                      width: `${(completedModules.length / Math.max(normalizedModules.length, 1)) * 100}%`,
                     }}
-                  ></div>
+                  />
                 </div>
               </div>
             </CardHeader>

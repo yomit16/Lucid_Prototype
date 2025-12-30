@@ -22,7 +22,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
+      {/* Keep a consistent background across the app matching the learner dashboard */}
+      <body className="antialiased bg-gradient-to-br from-green-50 to-blue-100 min-h-screen">
         <AuthProvider>
           <ErrorReporterInit />
           <LucidAssistant />
