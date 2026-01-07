@@ -1,7 +1,6 @@
 "use client";
-export const dynamic = "force-dynamic";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from "@/lib/supabase";
 import MCQQuiz from "./mcq-quiz";
@@ -15,7 +14,7 @@ interface TrainingModule {
   ai_modules: string | null;
 }
 
-const AssessmentPage = () => {
+const AssessmentPageContent = () => {
   const { user } = useAuth();
   const [modules, setModules] = useState<TrainingModule[]>([]);
   const searchParams = useSearchParams();
@@ -569,6 +568,14 @@ const AssessmentPage = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const AssessmentPage = () => {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <AssessmentPageContent />
+    </Suspense>
   );
 };
 

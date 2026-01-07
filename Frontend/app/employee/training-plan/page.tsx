@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase";
 import EmployeeNavigation from "@/components/employee-navigation";
 import { Users, ChevronLeft } from "lucide-react";
 
-export default function TrainingPlanPage() {
+function TrainingPlanPageContent() {
   // Track completed modules for the user
   const [completedModules, setCompletedModules] = useState<string[]>([]);
   const [actualUserId, setActualUserId] = useState<string | null>(null);
@@ -931,5 +931,13 @@ export default function TrainingPlanPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TrainingPlanPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <TrainingPlanPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = 'force-dynamic';
+
 // Helper to get user id from request header and validate admin role
 async function getAdminUser(req: Request): Promise<{ user_id: string; company_id: string } | null> {
   const userId = req.headers.get("x-admin-id");
